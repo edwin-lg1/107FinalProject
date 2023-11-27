@@ -266,22 +266,64 @@ g2_received_norm = g2_received/norm(g2_received);        % need to normalize?
 % % plot(g2_received_norm)
 
 %% Plotting Matched Filters
+% Q8 - Impulse and Frequency respionse of matched filter for HS, SRRC
+% g1: half-sine matched filter
 % figure,
-% plot(linspace(-K*T,K*T,2*K*samps + 1),g2)
+% % plot(t, g1, 'LineWidth',1.5)
 % hold on
-% plot(linspace(-K*T,K*T,2*K*samps + 1),g2_mf)
-% title("SRRC and its Matched-Filter")
+% t_mf = linspace(0,T,samps+1);
+% plot(t_mf, g1_mf, 'LineWidth',1.5)
+% grid minor
+% title("Half-Sine Matched-Filter")
+% legend("Matched-Filter Half-Sine")
+% xlabel('time t (s)')
+% ylabel('g_1(t) matched filter')
 % 
 % figure,
-% plot(t, g1, 'LineWidth',1.5)
+% freqz(g1_mf)
+% % g2: SRRC matched filter
+% figure,
+% % plot(linspace(-K*T,K*T,2*K*samps + 1),g2)
 % hold on
-% t_mf = linspace(-T,0,samps+1);
-% plot(t_mf, g1_mf, 'LineWidth',1.5)
-% grid on
-% title("Half-Sine and its Matched-Filter")
-% legend("Half-Sine","Matched-Filter Half-Sine")
+% plot(linspace(-K*T,K*T,2*K*samps + 1),g2_mf)
+% grid minor
+% title("SRRC Matched-Filter")
+% xlabel('time t (s)')
+% ylabel('g_2(t) matched filter')
+% 
+% figure,
+% freqz(g2_mf)
+
+%% Plotting eye diagrams for matched filter outputs (g1*g1_mf)
+% Q9 - Eye Digram for output of matched filter (1 and 2 bit durations)
+trim = 6*32;
+% eyediagram(g1_received,32,1)
+eyediagram(g1_received(1+trim:end-trim),32,1) % this truncation gets rid of middle transient traces
+eyediagram(g1_received(1+trim:end-trim),64,2) 
+trim = 2*6*32;
+eyediagram(g2_received(1+trim:end-trim),32,1) % this truncation gets rid of middle transients
+eyediagram(g2_received(1+trim:end-trim),64,2,16)
+
+% eyediagram(g2_received,64,2)
+
+%% Zero-Forcing Equalizer
+% Q10 - Implement Zero-Forcing 
+% TODO
+[Q,~] = zf_equalizer(ch1_coeffs);
+
 
 %% Supporting Local Functions
+
+% Zero Forcing Equalizer
+function [Q, h] = zf_equalizer(channel_response,received_signal)
+    % implement using filter(b,a): b-numerator, a-denominator
+    h = channel_response;
+    H = tf(h,1);
+    numerator = 1;
+    denominator = H;
+    Q = filter(numerator,denominator);
+
+end
 
 % Apply a matched filter to an input pulse
 function [matchfiltered_sig, matched_filter] = match_filter(sig_transmitted,modulation_pulse)
