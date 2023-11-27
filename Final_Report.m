@@ -117,6 +117,7 @@ end
 g1_mod = [g1_mod bk(10)*g1];
 
 % SRRC Modulation
+K = 6;
 srrc_ind = [];
 idx0 = 1;
 idx1 = (2*K*32)+1;
@@ -233,8 +234,6 @@ eyediagram(channel_mod,32,1,16)
 eyediagram(channel_srrc_mod(1+trim:end-trim),32,1)
 % eyediagram(channel_srrc_mod(1+trim:end-trim),16,1)
 
-
-
 %% Eye Digrams w/ Noise
 % eyediagram(channel_mod,32,1,16)
 noisy_halfsine = addnoise(channel_mod);
@@ -247,7 +246,49 @@ end
 for i = 1:size(noisy_srrc,1)
     eyediagram(noisy_srrc(i,1+trim:end-trim),32,1)
 end
+
+%% Matched Filtering
+[g1_received, g1_mf] = match_filter(g1_mod, g1);
+t_halfsine_conv = linspace(0,length(ak),samps*length(ak)+1+samps);
+
+[g2_received, g2_mf] = match_filter(g2_mod, g2);
+g2_received_norm = g2_received/norm(g2_received);        % need to normalize?
+
+% figure,
+% plot(g1_received)
+% hold on
+% plot(g1_mod)
+% 
+% figure,
+% plot(g2_received)
+% hold on
+% plot(g2_mod)
+% % plot(g2_received_norm)
+
+%% Plotting Matched Filters
+% figure,
+% plot(linspace(-K*T,K*T,2*K*samps + 1),g2)
+% hold on
+% plot(linspace(-K*T,K*T,2*K*samps + 1),g2_mf)
+% title("SRRC and its Matched-Filter")
+% 
+% figure,
+% plot(t, g1, 'LineWidth',1.5)
+% hold on
+% t_mf = linspace(-T,0,samps+1);
+% plot(t_mf, g1_mf, 'LineWidth',1.5)
+% grid on
+% title("Half-Sine and its Matched-Filter")
+% legend("Half-Sine","Matched-Filter Half-Sine")
+
 %% Supporting Local Functions
+
+% Apply a matched filter to an input pulse
+function [matchfiltered_sig, matched_filter] = match_filter(sig_transmitted,modulation_pulse)
+    matched_filter = fliplr(modulation_pulse);
+    matchfiltered_sig = conv(sig_transmitted,matched_filter);
+end
+
 % Simulate channel effects on modulated signals
 function [modulated_channel, filter_coeffs] = channel_effect(modulated_signal, filter_coeffs)
     upsampled_filter_coeffs = upsample(filter_coeffs,32);
