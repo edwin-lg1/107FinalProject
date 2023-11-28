@@ -248,10 +248,10 @@ for i = 1:size(noisy_srrc,1)
 end
 
 %% Matched Filtering
-[g1_received, g1_mf] = match_filter(g1_mod, g1);
+[g1_received, g1_mf] = match_filter(channel_mod, g1);
 t_halfsine_conv = linspace(0,length(ak),samps*length(ak)+1+samps);
 
-[g2_received, g2_mf] = match_filter(g2_mod, g2);
+[g2_received, g2_mf] = match_filter(channel_srrc_mod, g2);
 g2_received_norm = g2_received/norm(g2_received);        % need to normalize?
 
 % figure,
@@ -309,7 +309,27 @@ eyediagram(g2_received(1+trim:end-trim),64,2,16)
 %% Zero-Forcing Equalizer
 % Q10 - Implement Zero-Forcing 
 % TODO
-[Q,~] = zf_equalizer(ch1_coeffs);
+% [Q,~] = zf_equalizer(ch1_coeffs,g1_received);
+H = fft(ch1_coeffs);
+Q = 1 \ H;
+q = ifft(Q);
+
+[hq,wq] = freqz(1,H);
+[hh,wh] = freqz(H);
+freqz(H);
+figure;
+freqz(1,H);
+% figure(29)
+% plot(wh/pi,abs(hh),'b',wq/pi,abs(hq));
+% plot(ifft(hq,100000));
+% figure(30)
+% stem(zf_response);
+
+g1_zf = filter(q,1,g1_received);
+figure;
+hold on
+plot(g1_zf);
+plot(g1_mod);
 
 
 %% Supporting Local Functions
@@ -322,7 +342,6 @@ function [Q, h] = zf_equalizer(channel_response,received_signal)
     numerator = 1;
     denominator = H;
     Q = filter(numerator,denominator);
-
 end
 
 % Apply a matched filter to an input pulse
