@@ -6,6 +6,30 @@ clc
 % EE 107 - Communication Systems - Final Project
 % Authors: Nicholas Boudreau, Andrew Chen, Edwin Liang-Gilman
 %
+%% Read and preprocess image
+
+% filename = "CatJam.jpg";
+% imfinfo(filename)
+
+filename = 'peppers.png';
+imfinfo(filename)
+imgRGB = imread(filename);
+
+qbits = 8;
+[img_bitstream,r,c,m,n,minval,maxval] = ImagePreProcess_color(filename,qbits);
+% show postprocess on image directly
+[img_out] = ImagePostProcess_color(img_bitstream,r,c,m,n,minval,maxval);
+
+figure,
+montage({imgRGB, img_out})
+title("MATLAB's 'peppers.png' before and after processing",FontSize=26);
+subtitle("8-bit DCT coefficients")
+
+figure,
+montage({imgRGB(:,1:end-256,:), img_out(:,256:end,:)})
+title("MATLAB's 'peppers.png' before and after processing",FontSize=26);
+subtitle("8-bit DCT coefficients")
+
 %% Q1
 % Variable parameters:
 %   roll-off factor (alpha),
