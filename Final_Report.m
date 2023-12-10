@@ -306,31 +306,61 @@ eyediagram(g2_received(1+trim:end-trim),64,2,16)
 
 % eyediagram(g2_received,64,2)
 
-%% Zero-Forcing Equalizer
-% Q10 - Implement Zero-Forcing 
-% TODO
-% [Q,~] = zf_equalizer(ch1_coeffs,g1_received);
-H = fft(ch1_coeffs);
-Q = 1 \ H;
-q = ifft(Q);
+%% Zero-Forcing Equalization
+% Q10 Zero Forcing Equalizer
 
-[hq,wq] = freqz(1,H);
-[hh,wh] = freqz(H);
-freqz(H);
+% Channel Impulse Response
+[H,w1] = freqz(ch1_coeffs,1,10000,'whole');
 figure;
-freqz(1,H);
-% figure(29)
-% plot(wh/pi,abs(hh),'b',wq/pi,abs(hq));
-% plot(ifft(hq,100000));
-% figure(30)
-% stem(zf_response);
+freqz(ch1_coeffs,1);
 
-g1_zf = filter(q,1,g1_received);
+% ZF Equalizer Impulse Response
+[Q_zf,w2] = freqz(1,ch1_coeffs,10000,'whole');
 figure;
-hold on
-plot(g1_zf);
-plot(g1_mod);
+freqz(1,ch1_coeffs);
 
+% ZF Equalizer Impulse Response
+[zf_imp,t_zf] = impz(1,ch1_coeffs,2048);
+figure;
+plot(t_zf,zf_imp);
+
+
+% g1_zf = filter(1,ch1_coeffs,g1_received);
+
+%% TODO: Q11 - Eye diagrams with/without noise for ZF equalizer
+g1_rec_noise = addnoise(g1_received);
+g2_rec_noise = addnoise(g2_received);
+
+g1_zf = filter(1,ch1_coeffs,g1_received);
+g1_zf_lownoise = filter(1,ch1_coeffs,g1_rec_noise(2,:));
+g1_zf_hinoise = filter(1,ch1_coeffs,g1_rec_noise(3,:));
+
+g2_zf = filter(1,ch1_coeffs,g2_received);
+g2_zf_lownoise = filter(1,ch1_coeffs,g2_rec_noise(2,:));
+g2_zf_hinoise = filter(1,ch1_coeffs,g2_rec_noise(3,:));
+
+% plot eye diagrams
+
+eyediagram(g1_zf,32,1)
+eyediagram(g1_zf_lownoise,32,1)
+eyediagram(g1_zf_hinoise,32,1)
+
+eyediagram(g2_zf(1+trim:end-trim),32,1)
+eyediagram(g2_zf_lownoise(1+trim:end-trim),32,1)
+eyediagram(g2_zf_hinoise(1+trim:end-trim),32,1)
+
+%% MMSE Equalizer
+[H,w1] = freqz(ch1_coeffs,1,10000,'whole');
+H_conj = conj(H);
+H_sq = abs(H).^2;
+
+noise_pow = 0;
+Eb = 1;
+Q_mmse = H_conj ./ (H_sq + (noise_pow/Eb));
+figure;
+hold on;
+plot(w1/pi,abs(Q_zf))
+plot(w1/pi,abs(Q_mmse))
 
 %% Supporting Local Functions
 
