@@ -328,8 +328,8 @@ plot(t_zf,zf_imp);
 % g1_zf = filter(1,ch1_coeffs,g1_received);
 
 %% TODO: Q11 - Eye diagrams with/without noise for ZF equalizer
-g1_rec_noise = addnoise(g1_received);
-g2_rec_noise = addnoise(g2_received);
+[g1_rec_noise,noisepow] = addnoise(g1_received);
+[g2_rec_noise,~] = addnoise(g2_received);
 
 g1_zf = filter(1,ch1_coeffs,g1_received);
 g1_zf_lownoise = filter(1,ch1_coeffs,g1_rec_noise(2,:));
@@ -340,7 +340,6 @@ g2_zf_lownoise = filter(1,ch1_coeffs,g2_rec_noise(2,:));
 g2_zf_hinoise = filter(1,ch1_coeffs,g2_rec_noise(3,:));
 
 % plot eye diagrams
-
 eyediagram(g1_zf,32,1)
 eyediagram(g1_zf_lownoise,32,1)
 eyediagram(g1_zf_hinoise,32,1)
@@ -357,10 +356,24 @@ H_sq = abs(H).^2;
 noise_pow = 0;
 Eb = 1;
 Q_mmse = H_conj ./ (H_sq + (noise_pow/Eb));
+Q_mmse = Q_mmse';
 figure;
 hold on;
 plot(w1/pi,abs(Q_zf))
 plot(w1/pi,abs(Q_mmse))
+
+% Apply MMSE Equalizer
+G1 = fft(g1_received,length(Q_mmse));
+G1_mmse = G1 .* Q_mmse;
+g1_mmse = ifft(G1_mmse);
+
+G1 = fft(g1_received,length(Q_mmse));
+G1_mmse = G1 .* Q_mmse;
+g1_mmse = ifft(G1_mmse);
+
+eyediagram(g1_mmse,32,1);
+
+
 
 %% Supporting Local Functions
 
@@ -387,12 +400,13 @@ function [modulated_channel, filter_coeffs] = channel_effect(modulated_signal, f
 end
 
 % Add White Noise based on signal power or hard coded power level
-function [noisy_signal] = addnoise(input_sig)
+function [noisy_signal,noisepow] = addnoise(input_sig)
 % noise_power = pwr(input_sig);
     noise_power = [1e-3, 1e-2, 1e-1]; %,max(input_sig)]; TODO: automate
     sigma = noise_power';
     n = sigma.*randn(size(input_sig));
     noisy_signal = input_sig + n;
+    noisepow = sigma;
 end
 
 % Calculate power of given signal
