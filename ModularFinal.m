@@ -11,10 +11,11 @@ clc
 % Modularize process
 % 
 % image preprocess
-filename = 'peppers.png';
+filename = 'octopus.jpg.jpeg';
+imshow(filename)
 % imfinfo(filename)
 qbits = 8;
-
+%%
 % run
 main(filename,qbits)
 
@@ -38,8 +39,9 @@ function main(img_filename, qbits)
     % convert size(img_bitstream) to 1-dimensional bit-stream using reshape
 
     DCTblocks = int2bit(Ztres,8);
+    stack = zeros(8,8,size(DCTblocks,3));
     
-    for z = 1%:size(DCTblocks,3) % 9216 blocks
+    for z = 1:size(DCTblocks,3) % 4 blocks
         ak = reshape(DCTblocks(:,:,z),[],1);
         ak_double = cast(ak, 'double');
         bk = 2*ak_double-1;
@@ -84,15 +86,13 @@ function main(img_filename, qbits)
         ak_bin = reshape(ak_reconstructed,64,8);
         ak_recon = bit2int(ak_bin,8);
         
-        stack = zeros(8,8,size(DCTblocks,3));
-        for layers = 1:size(DCTblocks,3)
-            stack(:,:,layers) = ak_recon;
-            orig(:,:,layers) = Ztres(:,:,1);
-        end
+        
+        stack(:,:,z) = ak_recon;
+        orig(:,:,z) = Ztres(:,:,1);
+        
         
 
-        [newZ]=ImagePostProcess_color(stack,r,c,m,n,minval,maxval);
-        [newZ]=ImagePostProcess_color(orig,r,c,m,n,minval,maxval);
+%         [newZ]=ImagePostProcess_color(orig,r,c,m,n,minval,maxval);
 
 
 %         figure,
@@ -104,12 +104,12 @@ function main(img_filename, qbits)
 
 %         [ZF_ht, ZF_t, ZF_f, ZF_w] = ZFeq(taps);
         
-        figure,
-        plot(modulated_sig)
-        hold on
-        plot(abs(mmse_sig))
-        grid minor
-        legend()
+%         figure,
+%         plot(modulated_sig)
+%         hold on
+%         plot(abs(mmse_sig))
+%         grid minor
+%         legend()
 %         plot(matchedfiltered_sig)
 %         plot(zero_forced_sig)
 
@@ -132,6 +132,7 @@ function main(img_filename, qbits)
         
         
         end
+        
 
 
 
@@ -151,6 +152,8 @@ function main(img_filename, qbits)
 
 
     end
+
+    [newZ]=ImagePostProcess_color(stack,r,c,m,n,minval,maxval);
     
    
 %     % ->
