@@ -119,9 +119,10 @@ title('Frequency Response of SRRC for varying K')
 legend('K = 2','K = 4')
 grid on
 %% Q2 Generate random bit sequence ak, map to antipodal bk 
-n_bits = 10;
-VECTORLENGTH = n_bits*samps;
 ak = [0 1 0 1 0 1 1 1 1 1];     % define test case
+ak = repmat(ak,1,5)
+n_bits = numel(ak);
+VECTORLENGTH = n_bits*samps;
 bk = 2 * ak - 1;
 g1_mod = [];
 g2_mod = [];
@@ -275,17 +276,21 @@ end
 
 %% Matched Filtering
 [g1_received, g1_mf] = match_filter(channel_mod, g1);
-
+g1_received = g1_received(1:VECTORLENGTH);
 
 % t_halfsine_conv = linspace(0,length(ak),samps*length(ak)+1+samps);
 % 
 % [g2_received, g2_mf] = match_filter(channel_srrc_mod, g2);
 % g2_received_norm = g2_received/norm(g2_received);        % need to normalize?
-
+x_lines = 32:samps:n_bits*samps;
 figure,
 plot(g1_received)
 hold on
 plot(g1_mod)
+xline(x_lines)
+
+eyediagram(g1_received,samps,Tb)
+eyediagram(g1_received,2*samps,2*Tb,samps)
 % 
 % figure,
 % plot(g2_received)
@@ -324,61 +329,76 @@ plot(g1_mod)
 
 %% Plotting eye diagrams for matched filter outputs (g1*g1_mf)
 % Q9 - Eye Digram for output of matched filter (1 and 2 bit durations)
-trim = 6*32;
-% eyediagram(g1_received,32,1)
-eyediagram(g1_received(1+trim:end-trim),32,1) % this truncation gets rid of middle transient traces
-eyediagram(g1_received(1+trim:end-trim),64,2) 
-trim = 2*6*32;
-eyediagram(g2_received(1+trim:end-trim),32,1) % this truncation gets rid of middle transients
-eyediagram(g2_received(1+trim:end-trim),64,2,16)
-
-% eyediagram(g2_received,64,2)
+% trim = 6*32;
+% % eyediagram(g1_received,32,1)
+% eyediagram(g1_received(1+trim:end-trim),32,1) % this truncation gets rid of middle transient traces
+% eyediagram(g1_received(1+trim:end-trim),64,2) 
+% trim = 2*6*32;
+% eyediagram(g2_received(1+trim:end-trim),32,1) % this truncation gets rid of middle transients
+% eyediagram(g2_received(1+trim:end-trim),64,2,16)
 
 %% Zero-Forcing Equalization
-% Q10 Zero Forcing Equalizer
 
-% Channel Impulse Response
-[H,w1] = freqz(ch1_coeffs,1,10000,'whole');
-figure;
-freqz(ch1_coeffs,1);
 
-% ZF Equalizer Impulse Response
-[Q_zf,w2] = freqz(1,ch1_coeffs,10000,'whole');
-figure;
-freqz(1,ch1_coeffs);
-
-% ZF Equalizer Impulse Response
-[zf_imp,t_zf] = impz(1,ch1_coeffs,2048);
-figure;
-plot(t_zf,zf_imp);
-
+% % Q10 Zero Forcing Equalizer
+% 
+% % Channel Impulse Response
+% [H,w1] = freqz(ch1_coeffs,1,10000,'whole');
+% figure;
+% freqz(ch1_coeffs,1);
+% 
+% % ZF Equalizer Impulse Response
+% [Q_zf,w2] = freqz(1,ch1_coeffs,10000,'whole');
+% figure;
+% freqz(1,ch1_coeffs);
+% 
+% % ZF Equalizer Impulse Response
+% [zf_imp,t_zf] = impz(1,ch1_coeffs,2048);
+% figure;
+% plot(t_zf,zf_imp);
 
 %% TODO: Q11 - Eye diagrams with/without noise for ZF equalizer
-[g1_rec_noise,noisepow] = addnoise(g1_received);
-[g2_rec_noise,~] = addnoise(g2_received);
+% [g1_rec_noise,noisepow] = addnoise(g1_received);
+% [g2_rec_noise,~] = addnoise(g2_received);
+% 
+% g1_zf = filter(1,ch1_coeffs,g1_received);
+% g1_zf_lownoise = filter(1,ch1_coeffs,g1_rec_noise(2,:));
+% g1_zf_hinoise = filter(1,ch1_coeffs,g1_rec_noise(3,:));
+% 
+% g2_zf = filter(1,ch1_coeffs,g2_received);
+% g2_zf_lownoise = filter(1,ch1_coeffs,g2_rec_noise(2,:));
+% g2_zf_hinoise = filter(1,ch1_coeffs,g2_rec_noise(3,:));
+% 
+% % plot eye diagrams
+% eyediagram(g1_zf,32,1)
+% eyediagram(g1_zf_lownoise,32,1)
+% eyediagram(g1_zf_hinoise,32,1)
+% 
+% eyediagram(g2_zf(1+trim:end-trim),32,1)
+% eyediagram(g2_zf_lownoise(1+trim:end-trim),32,1)
+% eyediagram(g2_zf_hinoise(1+trim:end-trim),32,1)
 
-g1_zf = filter(1,ch1_coeffs,g1_received);
-g1_zf_lownoise = filter(1,ch1_coeffs,g1_rec_noise(2,:));
-g1_zf_hinoise = filter(1,ch1_coeffs,g1_rec_noise(3,:));
-
-g2_zf = filter(1,ch1_coeffs,g2_received);
-g2_zf_lownoise = filter(1,ch1_coeffs,g2_rec_noise(2,:));
-g2_zf_hinoise = filter(1,ch1_coeffs,g2_rec_noise(3,:));
-
-% plot eye diagrams
-eyediagram(g1_zf,32,1)
-eyediagram(g1_zf_lownoise,32,1)
-eyediagram(g1_zf_hinoise,32,1)
-
-eyediagram(g2_zf(1+trim:end-trim),32,1)
-eyediagram(g2_zf_lownoise(1+trim:end-trim),32,1)
-eyediagram(g2_zf_hinoise(1+trim:end-trim),32,1)
-
-%% MMSE Equalizer
+%% Equalization
+% Find H from freqz
 [H,w1] = freqz(ch1_coeffs,1,10000,'whole');
+% Obtain equalized signals
+[g1_zf, Q_zf] = zf_equalizer(g1_received,H);
+g1_zf = g1_zf(1:VECTORLENGTH);
+
 
 Eb = 1;
-[g1_mmse,Q_mmse] = mmse(g1_received,H,0,Eb);
+noisepow = 0;
+[g1_mmse,Q_mmse] = mmse(g1_received,H,noisepow,Eb);
+g1_mmse = g1_mmse(1:VECTORLENGTH);
+
+figure,
+plot(g1_mmse)
+hold on
+plot(g1_zf)
+plot(g1_received)
+plot(g1_mod)
+
+%%
 [g1_mmse_lownoise,~] = mmse(g1_rec_noise(2,:),H,noisepow(2),Eb);
 [g1_mmse_highnoise,~] = mmse(g1_rec_noise(3,:),H,noisepow(3),Eb);
 
@@ -406,53 +426,72 @@ hold on
 plot(g1_zf)
 plot(g1_mmse)
 plot(g1_mod)
-xlim([0 2000])
+% xlim([0 2000])
 
-figure(123);
-hold on
-plot(g2_zf)
-plot(g2_mmse)
-%plot(g2_mod)
-xlim([0 2000])
+% figure(123);
+% hold on
+% plot(g2_zf)
+% plot(g2_mmse)
+% %plot(g2_mod)
+% xlim([0 2000])
 
-sampled = zeros(1,50);
+sampled = zeros(1,n_bits);
 for i = 1:n_bits
     if (g1_mmse((i*32)) > 0)
         sampled(i) = 1;
     end
 end
 
+%%
+sampled == ak
+
 %% Supporting Local Functions
-
 % Zero Forcing Equalizer
-function [zf_sig, h] = zf_equalizer(channel_response,received_signal)
-    % implement using filter(b,a): b-numerator, a-denominator
-    h = channel_response;
-    H = tf(h,1);
-    numerator = 1;
-    denominator = H;
-    Q = filter(numerator,denominator);
+function [zf_sig, Q_zf] = zf_equalizer(rx,H)
+    Q_zf = 1./H;
+    Q_zf = Q_zf';
 
-    zf_sig = eq_sig(received_signal,Q);
+    zf_sig = eq_sig(rx,Q_zf);
 end
 
 % MMSE Equalizer
-function [mmse_sig,Q_mmse] = mmse(g_rec,H,noise_pow,Eb)
+function [mmse_sig,Q_mmse] = mmse(rx,H,noise_pow,Eb)
     H_conj = conj(H);
     H_sq = abs(H).^2;
     Q_mmse = H_conj ./ (H_sq + (noise_pow/Eb));
     Q_mmse = Q_mmse';
 
-    mmse_sig = eq_sig(g_rec, Q_mmse);
+    mmse_sig = eq_sig(rx, Q_mmse);
 end
 
 %Equalizer Convolution
-function [eq_sig] = eq(sig_rec,Q_eq)
-    
-    g = fft(sig_rec, length(Q_eq));
+function [eq_sig] = eq_sig(rx,Q_eq)
+    g = fft(rx, length(Q_eq));
     g_eq = g .* Q_eq;
     eq_sig = ifft(g_eq);
 end
+% % Zero Forcing Equalizer
+% function [Q, h] = zf_equalizer(channel_response,received_signal)
+%     % implement using filter(b,a): b-numerator, a-denominator
+%     h = channel_response;
+%     H = tf(h,1);
+%     numerator = 1;
+%     denominator = H;
+%     Q = filter(numerator,denominator);
+% end
+% 
+% % MMSE Equalizer
+% function [mmse_sig,Q_mmse] = mmse(g_rec,H,noise_pow,Eb)
+%     H_conj = conj(H);
+%     H_sq = abs(H).^2;
+%     Q_mmse = H_conj ./ (H_sq + (noise_pow/Eb));
+%     Q_mmse = Q_mmse';
+% 
+%     % Apply MMSE Eq.
+%     G = fft(g_rec,length(Q_mmse));
+%     G_mmse = G .* Q_mmse;
+%     mmse_sig = ifft(G_mmse);
+% end
 
 % Apply a matched filter to an input pulse
 function [matchfiltered_sig, matched_filter] = match_filter(sig_transmitted,modulation_pulse)
