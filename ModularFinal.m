@@ -44,21 +44,45 @@ function main(img_filename, qbits)
         bk = 2*ak_double-1;
 
         img_bitstream = bk;
-        n_bits = numel(size(DCTblocks,1)*size(DCTblocks,2));
+        n_bits = size(DCTblocks,1)*size(DCTblocks,2);
         % ->
         % modulate with 2 pulse shapes
-        modulated_sig_cellarray = cell(2,1);
-        t_cellarray = cell(2,1);
+%         modulated_sig_cellarray = cell(2,1);
+%         t_cellarray = cell(2,1);
         
         Tb = 1;
         K = 6;
         alpha = 0.5;
         samps = 32;
-        for i = 1:2
+
+        for i = 1%:2 % 1 selects Half-Sine
             [modulated_sig, t, ...
                 pulse, pulse_t, Tb, K, alpha, samps] = pulseshape_modulation(img_bitstream, ...
                                                              i, Tb, K, alpha, samps);
-          
+        for j = 1%:3 % 1 selects channel 1
+            [noisy_received_sig, clean_channel_sig, taps, npwr] = channel_modulation(modulated_sig, j);
+        end
+        noisy_low = noisy_received_sig(1,:);
+        noisy_high = noisy_received_sig(2,:);
+        noisy_0 = clean_channel_sig(:);
+
+        [matchedfiltered_sig, matchedfilter] = matched_filtering(noisy_0,pulse);
+
+        hs_received = matchedfiltered_sig;
+        hs = matchedfilter
+        figure,
+        plot(hs_received)
+        figure,
+        plot(hs)
+
+% 
+%         figure(99)
+%         plot(noisy_received_sig(1,1:10))
+%         hold on
+%         plot(noisy_received_sig(2,1:10))
+%         plot(clean_channel_sig(1:10), 'LineWidth',2)
+
+
 %     % plot modulated signal
 %             figure(i),
 %             plot(t,modulated_sig)
@@ -67,7 +91,7 @@ function main(img_filename, qbits)
 %             plot(pulse_t,pulse)
         
         
-    end
+        end
 
 
 
@@ -103,9 +127,46 @@ end
 %
 
 
+function
+
+end
+
 %
 %
-function [] = channel_modulation
+function [matchedfiltered_sig, matchedfilter] = matched_filtering(sig,pulse)
+    matchedfilter = fliplr(pulse);
+    matchedfiltered_sig = conv(sig,matchedfilter);
+end
+%
+% channel modulation with choice of 3 defined channels
+% returns noisy and clean channel responses, channel coefficients, and
+% noise powers
+function [noisy_received_sig, clean_channel_sig, filter_coeffs, noisepwr] = channel_modulation(sig, channelselect)
+    % channel definition
+    ch1 = [1, 0.5, 0.75, -2/7];
+    ch_outdoor = [0.5 1 0 0.63 0 0 0 0 0.25 0 0 0 0.16 0 0 0 0 0 0 0 0 0 0 0 0 0.1];
+    ch_indoor = [1 0.4365 0.1905 0.0832 0 0.0158 0 0.003];
+
+    noisepwr = [1e-2, 1e-1]';
+    
+
+
+    switch channelselect
+        case 1
+            filter_coeffs = ch1;
+        case 2
+            filter_coeffs = ch_outdoor;
+        case 3
+            filter_coeffs = ch_indoor;
+        otherwise
+            filter_coeffs = [];
+    end
+        upsampled_filter_coeffs = upsample(filter_coeffs,32);
+        clean_channel_sig = conv(upsampled_filter_coeffs,sig);
+        n = noisepwr.*randn(size(clean_channel_sig));
+        noisy_received_sig = clean_channel_sig + n;
+end
+
 
 
 % modulation with either half-sine or srrc pulses
