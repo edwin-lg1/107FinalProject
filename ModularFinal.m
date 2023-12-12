@@ -11,8 +11,7 @@ clc
 % Modularize process
 % 
 % image preprocess
-filename = 'octopus.jpg.jpeg';
-imshow(filename)
+filename = 'octo256.jpg';
 % imfinfo(filename)
 qbits = 8;
 %%
@@ -58,7 +57,7 @@ function main(img_filename, qbits)
         alpha = 0.5;
         samps = 32;
 
-        for i = 1%:2 % 1 selects Half-Sine
+        for i = 2 % 1 selects Half-Sine
             [modulated_sig, t, ...
                 pulse, pulse_t, Tb, K, alpha, samps] = pulseshape_modulation(img_bitstream, ...
                                                              i, Tb, K, alpha, samps);
@@ -80,7 +79,7 @@ function main(img_filename, qbits)
 
         bitstream_sampled = zeros(n_bits,1);
  
-        bitstream_sampled(zero_forced_sig(32:samps:end-(4*32)-1)>0) = 1;
+        bitstream_sampled(zero_forced_sig((161:samps:end-1>0))) = 1;
 
         ak_reconstructed = cast(bitstream_sampled,'uint8');
         ak_bin = reshape(ak_reconstructed,64,8);
@@ -184,6 +183,7 @@ function [mmse_sig,Q_mmse] = mmse(g_rec,H,noise_pow,Eb)
     G = fft(g_rec,length(Q_mmse));
     G_mmse = G .* Q_mmse;
     mmse_sig = ifft(G_mmse);
+    % check length
 end
 %
 % zero-forcing equalizer
