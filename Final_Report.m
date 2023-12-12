@@ -392,7 +392,28 @@ eyediagram(g2_mmse(1+trim:end-trim),32,1)
 eyediagram(g2_mmse_lownoise(1+trim:end-trim),32,1)
 eyediagram(g2_mmse_hinoise(1+trim:end-trim),32,1)
 
+%% Sampling
 
+figure(122);
+hold on
+plot(g1_zf)
+plot(g1_mmse)
+plot(g1_mod)
+xlim([0 2000])
+
+figure(123);
+hold on
+plot(g2_zf)
+plot(g2_mmse)
+%plot(g2_mod)
+xlim([0 2000])
+
+sampled = zeros(1,50);
+for i = 1:n_bits
+    if (g1_mmse((i*32)) > 0)
+        sampled(i) = 1;
+    end
+end
 
 %% Supporting Local Functions
 
