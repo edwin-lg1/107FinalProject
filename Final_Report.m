@@ -14,26 +14,23 @@ clc
 filename = 'peppers.png';
 imfinfo(filename)
 imgRGB = imread(filename);
+im_double = im2double(imgRGB);
 
 qbits = 8;
 [img_bitstream,r,c,m,n,minval,maxval] = ImagePreProcess_color(filename,qbits);
 % show postprocess on image directly
-[img_out] = ImagePostProcess_color(img_bitstream,r,c,m,n,minval,maxval);
 
-figure,
-montage({imgRGB, img_out})
-title("MATLAB's 'peppers.png' before and after processing",FontSize=26);
-subtitle("8-bit DCT coefficients")
+N = 8;
+dct_blocks = int2bit(img_bitstream,N);
+% ak = reshape(dct_blocks,1,[]);
+% ak = cast(ak,"double");
+% bk = 2 * ak - 1;
 
-figure,
-montage({imgRGB(:,1:end-256,:), img_out(:,256:end,:)})
-title("MATLAB's 'peppers.png' before and after processing",FontSize=26);
-subtitle("8-bit DCT coefficients")
 
 %% Q1
 % Variable parameters:
-%   roll-off factor (alpha),
-%   truncation length (K)
+% roll-off factor (alpha),
+% truncation length (K)
 alpha = 0.5; % [0 0.5 1]
 K = 6; % [2 4 6]
 samps = 32;
@@ -42,9 +39,10 @@ T = 1;
 t = linspace(0,1,samps+1);
 
 g1 = sin((pi / T) * t);
-g1 = g1 / norm(g1);             % normalize; energy = 1
+g1 = g1 / norm(g1);              % normalize; energy = 1
 g2 = rcosdesign(alpha,2*K,samps);
 g2 = g2 / norm(g2);
+
 %% Plots Q1
 % Half-Sine
 figure(1)
@@ -125,7 +123,6 @@ legend('K = 2','K = 4')
 grid on
 %% Q2 Generate random bit sequence ak, map to antipodal bk 
 % 10 bit signal
-% ak = [1 0 1 1 0 1 0 0 1 0]; %randi([0, 1],1,10);
 rng(0)          % fix for repeatability
 n_bits = 50;    % scaling test case
 ak = randi([0, 1],1,n_bits);
@@ -349,8 +346,6 @@ figure;
 plot(t_zf,zf_imp);
 
 
-% g1_zf = filter(1,ch1_coeffs,g1_received);
-
 %% TODO: Q11 - Eye diagrams with/without noise for ZF equalizer
 [g1_rec_noise,noisepow] = addnoise(g1_received);
 [g2_rec_noise,~] = addnoise(g2_received);
@@ -374,28 +369,28 @@ eyediagram(g2_zf_hinoise(1+trim:end-trim),32,1)
 
 %% MMSE Equalizer
 [H,w1] = freqz(ch1_coeffs,1,10000,'whole');
-H_conj = conj(H);
-H_sq = abs(H).^2;
 
-noise_pow = 0;
 Eb = 1;
-Q_mmse = H_conj ./ (H_sq + (noise_pow/Eb));
-Q_mmse = Q_mmse';
+[g1_mmse,Q_mmse] = mmse(g1_received,H,0,Eb);
+[g1_mmse_lownoise,~] = mmse(g1_rec_noise(2,:),H,noisepow(2),Eb);
+[g1_mmse_highnoise,~] = mmse(g1_rec_noise(3,:),H,noisepow(3),Eb);
+
 figure;
-hold on;
-plot(w1/pi,abs(Q_zf))
-plot(w1/pi,abs(Q_mmse))
-
-% Apply MMSE Equalizer
-G1 = fft(g1_received,length(Q_mmse));
-G1_mmse = G1 .* Q_mmse;
-g1_mmse = ifft(G1_mmse);
-
-G1 = fft(g1_received,length(Q_mmse));
-G1_mmse = G1 .* Q_mmse;
-g1_mmse = ifft(G1_mmse);
+plot(w1/pi,20*log10(abs(Q_mmse)))
+grid on;
 
 eyediagram(g1_mmse,32,1);
+eyediagram(g1_mmse_lownoise,32,1)
+eyediagram(g1_mmse_highnoise,32,1)
+
+Eb = 1;
+[g2_mmse,~] = mmse(g2_received,H,0,Eb);
+[g2_mmse_lownoise,~] = mmse(g2_rec_noise(2,:),H,noisepow(2),Eb);
+[g2_mmse_hinoise,~] = mmse(g2_rec_noise(3,:),H,noisepow(3),Eb);
+
+eyediagram(g2_mmse(1+trim:end-trim),32,1)
+eyediagram(g2_mmse_lownoise(1+trim:end-trim),32,1)
+eyediagram(g2_mmse_hinoise(1+trim:end-trim),32,1)
 
 
 
@@ -409,6 +404,19 @@ function [Q, h] = zf_equalizer(channel_response,received_signal)
     numerator = 1;
     denominator = H;
     Q = filter(numerator,denominator);
+end
+
+% MMSE Equalizer
+function [mmse_sig,Q_mmse] = mmse(g_rec,H,noise_pow,Eb)
+    H_conj = conj(H);
+    H_sq = abs(H).^2;
+    Q_mmse = H_conj ./ (H_sq + (noise_pow/Eb));
+    Q_mmse = Q_mmse';
+
+    % Apply MMSE Eq.
+    G = fft(g_rec,length(Q_mmse));
+    G_mmse = G .* Q_mmse;
+    mmse_sig = ifft(G_mmse);
 end
 
 % Apply a matched filter to an input pulse
