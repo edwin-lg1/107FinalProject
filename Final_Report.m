@@ -9,8 +9,6 @@ clc
 %% Read and preprocess image
 
 % filename = "CatJam.jpg";
-% imfinfo(filename)
-
 filename = 'peppers.png';
 imfinfo(filename)
 imgRGB = imread(filename);
@@ -27,19 +25,18 @@ dct_blocks = int2bit(img_bitstream,N);
 % bk = 2 * ak - 1;
 
 
-%% Q1
-% Variable parameters:
-% roll-off factor (alpha),
-% truncation length (K)
+%% PULSE SHAPES
 alpha = 0.5; % [0 0.5 1]
 K = 6; % [2 4 6]
 samps = 32;
 
 T = 1;
 t = linspace(0,1,samps+1);
-
+%%% HS
 g1 = sin((pi / T) * t);
-g1 = g1 / norm(g1);              % normalize; energy = 1
+g1 = g1 / norm(g1);
+g1 = g1(1:samps)
+%%% SRRC
 g2 = rcosdesign(alpha,2*K,samps);
 g2 = g2 / norm(g2);
 
@@ -122,21 +119,26 @@ title('Frequency Response of SRRC for varying K')
 legend('K = 2','K = 4')
 grid on
 %% Q2 Generate random bit sequence ak, map to antipodal bk 
-% 10 bit signal
-rng(0)          % fix for repeatability
-n_bits = 50;    % scaling test case
-ak = randi([0, 1],1,n_bits);
+n_bits = 10;
+VECTORLENGTH = n_bits*samps;
+ak = [0 1 0 1 0 1 1 1 1 1];     % define test case
 bk = 2 * ak - 1;
 g1_mod = [];
 g2_mod = [];
 
 %%
 % Half-Sine Modulation
-for i = 1:length(ak)-1
-   g1_mod = [g1_mod bk(i)*g1(1:samps)];
-end
-g1_mod = [g1_mod bk(10)*g1];
+bk_upsamp = upsample(bk,32);
+g1_mod = conv(bk_upsamp,g1);
+g1_mod = g1_mod(1:VECTORLENGTH);
 
+% Plot Halfsine
+% figure(1),
+% plot(t(1:32),g1)
+% 
+% figure(2)
+% plot(g1_mod)
+%%
 % SRRC Modulation
 K = 6;
 srrc_ind = [];
@@ -155,30 +157,30 @@ t_srrc = linspace(0,2*length(ak)+1,length(g2_mod));
 
 
 %% Plots for modulated signals
-figure(9)
-t_halfsine = linspace(0,length(ak),samps*length(ak)+1);
-plot(t_halfsine,g1_mod,'LineWidth',1.5);
-title('Modulated Half-Sine Pulse')
-xlabel('T (s)')
-ylabel('g_1(t)')
-grid on
-
-figure(10)
-hold on
-for i = 1:length(ak)
-   k = find(srrc_ind(i,:));
-   plot(t_srrc(k),srrc_ind(i,k),'LineWidth',1.2)
-end
-title('Plot of Individual SRRC Pulses')
-xlabel('t (s)')
-ylabel('g_2(t)')
-grid on
-
-% Testing out modulation using convolution
-figure(11)
-plot(t_srrc,g2_mod,'LineWidth',1.5)
-title('Modulated SRRC Pulse')
-grid minor
+% figure(9)
+% t_halfsine = linspace(0,length(ak),samps*length(ak)+1);
+% plot(t_halfsine,g1_mod,'LineWidth',1.5);
+% title('Modulated Half-Sine Pulse')
+% xlabel('T (s)')
+% ylabel('g_1(t)')
+% grid on
+% 
+% figure(10)
+% hold on
+% for i = 1:length(ak)
+%    k = find(srrc_ind(i,:));
+%    plot(t_srrc(k),srrc_ind(i,k),'LineWidth',1.2)
+% end
+% title('Plot of Individual SRRC Pulses')
+% xlabel('t (s)')
+% ylabel('g_2(t)')
+% grid on
+% 
+% % Testing out modulation using convolution
+% figure(11)
+% plot(t_srrc,g2_mod,'LineWidth',1.5)
+% title('Modulated SRRC Pulse')
+% grid minor
 %% Q3
 % [h_half,w_half] = freqz(g1_mod);
 % [h_srrc,w_srrc] = freqz(g2_mod);
@@ -192,18 +194,17 @@ grid minor
 % title('Spectrum of Modulated Half-Sine and SRRC')
 % legend('Half-Sine','SRRC')
 % grid on
-figure(12)
-freqz(g1_mod);
-title('Frequency Response of Half-Sine Modulation')
-figure(13)
-freqz(g2_mod);
-title('Frequency Response of SRRC Modulation')
+% figure(12)
+% freqz(g1_mod);
+% title('Frequency Response of Half-Sine Modulation')
+% figure(13)
+% freqz(g2_mod);
+% title('Frequency Response of SRRC Modulation')
 %% Q4 Eye diagrams
 eyediagram(g1_mod,32,1,16); % (signal,n_samps,period,offset)
 % eyediagram(g2_mod(193:481),32,1);
 trim = K*samps;
 eyediagram(g2_mod(1+trim:end-trim),32,1); % (193:481)get rid of trailing start/end (K*samps)
-
 %% Channel Effect Definitions
 
 ch1_coeffs = [1, 0.5, 0.75, -2/7];
@@ -237,22 +238,26 @@ ch_indoor = [1 0.4365 0.1905 0.0832 0 0.0158 0 0.003];
 
 
 %%
-[channel_mod, taps] = channel_effect(g1_mod,ch1_coeffs);
-[channel_srrc_mod] = channel_effect(g2_mod,ch1_coeffs);
+[channel_mod, taps] = channel_effect(g1_mod,ch_indoor);
+% [channel_srrc_mod] = channel_effect(g2_mod,ch1_coeffs);
+convtrim = length(taps)*samps-1;
+channel_mod = channel_mod(1:VECTORLENGTH);
 
+%% Plot signal after channel
+% figure(3),
+% plot(channel_mod)
 %% Plot channel impulse response
-t = 0:4/length(taps):4-4/length(taps);
-figure,
-stem(t,taps)
-grid minor
-title("Channel Impulse Response h[n]")
-xlabel("samples (n)")
-ylabel("h[n]")
-xlim([-0.5, 3.5])
-
+% t = 0:4/length(taps):4-4/length(taps);
+% figure,
+% stem(t,taps)
+% grid minor
+% title("Channel Impulse Response h[n]")
+% xlabel("samples (n)")
+% ylabel("h[n]")
+% xlim([-0.5, 3.5])
 %% Eye Diagrams after channel effects
 eyediagram(channel_mod,32,1,16)
-eyediagram(channel_srrc_mod(1+trim:end-trim),32,1)
+% eyediagram(channel_srrc_mod(1+trim:end-trim),32,1)
 % eyediagram(channel_srrc_mod(1+trim:end-trim),16,1)
 
 %% Eye Digrams w/ Noise
@@ -270,15 +275,17 @@ end
 
 %% Matched Filtering
 [g1_received, g1_mf] = match_filter(channel_mod, g1);
-t_halfsine_conv = linspace(0,length(ak),samps*length(ak)+1+samps);
 
-[g2_received, g2_mf] = match_filter(channel_srrc_mod, g2);
-g2_received_norm = g2_received/norm(g2_received);        % need to normalize?
 
-% figure,
-% plot(g1_received)
-% hold on
-% plot(g1_mod)
+% t_halfsine_conv = linspace(0,length(ak),samps*length(ak)+1+samps);
+% 
+% [g2_received, g2_mf] = match_filter(channel_srrc_mod, g2);
+% g2_received_norm = g2_received/norm(g2_received);        % need to normalize?
+
+figure,
+plot(g1_received)
+hold on
+plot(g1_mod)
 % 
 % figure,
 % plot(g2_received)
