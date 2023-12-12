@@ -425,13 +425,15 @@ end
 %% Supporting Local Functions
 
 % Zero Forcing Equalizer
-function [Q, h] = zf_equalizer(channel_response,received_signal)
+function [zf_sig, h] = zf_equalizer(channel_response,received_signal)
     % implement using filter(b,a): b-numerator, a-denominator
     h = channel_response;
     H = tf(h,1);
     numerator = 1;
     denominator = H;
     Q = filter(numerator,denominator);
+
+    zf_sig = eq_sig(received_signal,Q);
 end
 
 % MMSE Equalizer
@@ -441,10 +443,15 @@ function [mmse_sig,Q_mmse] = mmse(g_rec,H,noise_pow,Eb)
     Q_mmse = H_conj ./ (H_sq + (noise_pow/Eb));
     Q_mmse = Q_mmse';
 
-    % Apply MMSE Eq.
-    G = fft(g_rec,length(Q_mmse));
-    G_mmse = G .* Q_mmse;
-    mmse_sig = ifft(G_mmse);
+    mmse_sig = eq_sig(g_rec, Q_mmse);
+end
+
+%Equalizer Convolution
+function [eq_sig] = eq(sig_rec,Q_eq)
+    
+    g = fft(sig_rec, length(Q_eq));
+    g_eq = g .* Q_eq;
+    eq_sig = ifft(g_eq);
 end
 
 % Apply a matched filter to an input pulse
