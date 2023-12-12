@@ -13,7 +13,6 @@ clc
 % image preprocess
 filename = 'peppers.png';
 % imfinfo(filename)
-imgRGB = imread(filename);
 qbits = 8;
 
 % run
@@ -36,43 +35,41 @@ function main(img_filename, qbits)
     % ->
     % bit stream
     % convert size(img_bitstream) to 1-dimensional bit-stream using reshape
-%     img_bitstream = reshape(img_double, 1, []);
-    img_bitstream = reshape(img_RGB,1, []);
-    binary_img_bitstream = u;
-    % arbitrary bit-stream for test
-    rng(0)
-    n_bits = 64;
-%     ak = randi([0, 1], 1, n_bits);
-    bk = 2 * ak - 1; % bit-stream
-%     img_bitstream = bk;
 
-    % ->
-    % modulate with 2 pulse shapes
-    modulated_sig_cellarray = cell(2,1);
-    t_cellarray = cell(2,1);
+    DCTblocks = int2bit(Ztres,8);
     
-    Tb = 1;
-    K = 6;
-    alpha = 0.5;
-    samps = 32;
-    for i = 1:2
-        [modulated_sig, t, ...
-            pulse, pulse_t, Tb, K, alpha, samps] = pulseshape_modulation(img_bitstream, ...
-                                                         i, Tb, K, alpha, samps);
-      
-% plot modulated signal
-%         figure(i),
-%         plot(t,modulated_sig)
-% plot pulse shapes
-%         figure(i+2)
-%         plot(pulse_t,pulse)
+    for z = 1 %:size(DCTblocks,3) % 9216 blocks
+        ak = reshape(DCTblocks(:,:,z),[],1);
+        ak_double = cast(ak, 'double');
+        bk = 2*ak_double-1;
+
+        img_bitstream = bk;
+        n_bits = numel(size(DCTblocks,1)*size(DCTblocks,2));
+        % ->
+        % modulate with 2 pulse shapes
+        modulated_sig_cellarray = cell(2,1);
+        t_cellarray = cell(2,1);
+        
+        Tb = 1;
+        K = 6;
+        alpha = 0.5;
+        samps = 32;
+        for i = 1:2
+            [modulated_sig, t, ...
+                pulse, pulse_t, Tb, K, alpha, samps] = pulseshape_modulation(img_bitstream, ...
+                                                             i, Tb, K, alpha, samps);
+          
+%     % plot modulated signal
+%             figure(i),
+%             plot(t,modulated_sig)
+      % plot pulse shapes
+%             figure(i+2)
+%             plot(pulse_t,pulse)
+        
+        
     end
 
 
-%     hs_mod = modulated_sig_cellarray(1,:);
-%     hs_t = t_cellarray(1,:);
-%     figure,
-%     plot
 
     % ->
     % convolve with 3 channels
@@ -86,6 +83,12 @@ function main(img_filename, qbits)
     % -> 
 %     % sample and detect
 %     img_bitstream_received = img_bitstream; %%%temporary testing
+
+
+
+    end
+    
+   
 %     % ->
 %     % reshape bitstream into 8x8 for postprocessing
 %     img_reshaped_stream = reshape(img_bitstream_received, 8, 8, []);
@@ -99,6 +102,14 @@ end
 %% Supporting Local Functions
 %
 
+
+%
+%
+function [] = channel_modulation
+
+
+% modulation with either half-sine or srrc pulses
+% returns modulated signal, pulse signal w.r.t. time, and parameters used
 function [modulated_sig, t, pulse, t_pulse, Tb, K, alpha, samps] = pulseshape_modulation(sig, pulseshape, Tb, K, alpha, samps)
     modulated_sig = [];
     
