@@ -28,6 +28,7 @@ main(filename,qbits)
 function main(img_filename, qbits)
     % image preproc
     [Ztres,r,c,m,n,minval,maxval] = ImagePreProcess_color(img_filename, qbits);
+%     [Ztres_gray,r,c,m,n,minval,maxval]=ImagePreProcess_gray(img_filename,qbits)
     img_RGB = imread(img_filename);
 %     img_double = im2double(img_RGB);
     numcol = floor(numel(img_RGB(1,:,1))/2);
@@ -38,11 +39,11 @@ function main(img_filename, qbits)
 
     DCTblocks = int2bit(Ztres,8);
     
-    for z = 1 %:size(DCTblocks,3) % 9216 blocks
+    for z = 1%:size(DCTblocks,3) % 9216 blocks
         ak = reshape(DCTblocks(:,:,z),[],1);
         ak_double = cast(ak, 'double');
         bk = 2*ak_double-1;
-
+%         bk = upsample(bk,32);
         img_bitstream = bk;
         n_bits = size(DCTblocks,1)*size(DCTblocks,2);
         % ->
@@ -67,13 +68,52 @@ function main(img_filename, qbits)
         noisy_0 = clean_channel_sig(:);
 
         [matchedfiltered_sig, matchedfilter] = matched_filtering(noisy_0,pulse);
+        
+        %EQ
+        zero_forced_sig = filter(1,taps,matchedfiltered_sig);
+        H = freqz(taps,1);
+        noise_pow = 0;
+        Eb = 1;
+        [mmse_sig,Q_mmse] = mmse(matchedfiltered_sig',H,noise_pow,Eb);
 
-        hs_received = matchedfiltered_sig;
-        hs = matchedfilter
+        bitstream_sampled = zeros(n_bits,1);
+ 
+        bitstream_sampled(zero_forced_sig(32:samps:end-(4*32)-1)>0) = 1;
+
+        ak_reconstructed = cast(bitstream_sampled,'uint8');
+        ak_bin = reshape(ak_reconstructed,64,8);
+        ak_recon = bit2int(ak_bin,8);
+        
+        stack = zeros(8,8,size(DCTblocks,3));
+        for layers = 1:size(DCTblocks,3)
+            stack(:,:,layers) = ak_recon;
+            orig(:,:,layers) = Ztres(:,:,1);
+        end
+        
+
+        [newZ]=ImagePostProcess_color(stack,r,c,m,n,minval,maxval);
+        [newZ]=ImagePostProcess_color(orig,r,c,m,n,minval,maxval);
+
+
+%         figure,
+%         stem(ak_reconstructed)
+%         hold on
+%         stem(2*ak_double-1)
+
+
+
+%         [ZF_ht, ZF_t, ZF_f, ZF_w] = ZFeq(taps);
+        
         figure,
-        plot(hs_received)
-        figure,
-        plot(hs)
+        plot(modulated_sig)
+        hold on
+        plot(abs(mmse_sig))
+        grid minor
+        legend()
+%         plot(matchedfiltered_sig)
+%         plot(zero_forced_sig)
+
+
 
 % 
 %         figure(99)
@@ -106,7 +146,7 @@ function main(img_filename, qbits)
     
     % -> 
 %     % sample and detect
-%     img_bitstream_received = img_bitstream; %%%temporary testing
+%     bk_reconstructed = img_bitstream; %%%temporary testing
 
 
 
@@ -126,15 +166,33 @@ end
 %% Supporting Local Functions
 %
 
+%
+% %
+% function []
+% 
+% MMSE Eq
+function [mmse_sig,Q_mmse] = mmse(g_rec,H,noise_pow,Eb)
+    H_conj = conj(H);
+    H_sq = abs(H).^2;
+    Q_mmse = H_conj ./ (H_sq + (noise_pow/Eb));
+    Q_mmse = Q_mmse';
 
-function
-
+    % Apply MMSE Eq.
+    G = fft(g_rec,length(Q_mmse));
+    G_mmse = G .* Q_mmse;
+    mmse_sig = ifft(G_mmse);
+end
+%
+% zero-forcing equalizer
+function [ZF_ht, ZF_t, ZF_f, ZF_w] = ZFeq(channel_coeffs)
+    [ZF_f, ZF_w] = freqz(1,channel_coeffs,10000);
+    [ZF_ht, ZF_t] = impz(1,channel_coeffs,2048);
 end
 
 %
-%
+% matched filtering, provide pulse shape
 function [matchedfiltered_sig, matchedfilter] = matched_filtering(sig,pulse)
-    matchedfilter = fliplr(pulse);
+    matchedfilter = flip(pulse(1:end-1));%fliplr(pulse);
     matchedfiltered_sig = conv(sig,matchedfilter);
 end
 %
