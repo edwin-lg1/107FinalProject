@@ -13,21 +13,16 @@ filename = 'octopus.png';
 qbits = 8; % [8 16 color depth]
 color = 1; % [0 greyscale, 1 color]
 pulseshape = 1; % [1 HS, 2 SRRC]
-channel = 2; % [1 default, 2 outdoor, 3 indoor]
+channel = 1; % [1 default, 2 outdoor, 3 indoor]
 noisepwr = 1; % [1 LOW 1e-2, 2 HIGH 1e-1]
-eq = 2; % [1 zf 2 mmse]
+eq = 1; % [1 zf 2 mmse]
 
 %%
 % run
 main(filename,qbits,color,pulseshape,channel,eq, noisepwr)
 
 
-
-
-
-
-
-%% main driver 
+% main driver 
 function main(img_filename, qbits, color, pulseshape, channel, eq, noisepwr)
     % image preproc
     switch color
@@ -54,8 +49,8 @@ function main(img_filename, qbits, color, pulseshape, channel, eq, noisepwr)
 
     Eb = 1;
     
-    for z = 1%:size(DCTblocks,3) % r/8*c/8*3 (108)
-        disp(z)
+    for z = 1:size(DCTblocks,3) % r/8*c/8*3 (108)
+        disp(z);
         ak = reshape(DCTblocks(:,:,z),[],1);
         ak_double = cast(ak, 'double');
         bk = 2*ak_double-1;
@@ -118,45 +113,46 @@ function main(img_filename, qbits, color, pulseshape, channel, eq, noisepwr)
 
 
             %%%% Equalizer %%%%
-            [H,w1] = freqz(taps,1,10000,'whole');
-
         switch eq
             case 1
 %                 disp("Zero Forcing Eq")
-                [rx_zeronoise_zf, Q_zf] = zf_equalizer(rx_zero_noise_mf,H);
-                [rx_noisy_zf, Q_zf] = zf_equalizer(rx_noisy_mf,H);
+                [rx_zeronoise_zf, Q_zf] = zf_equalizer(rx_zero_noise_mf,taps);
+                [rx_noisy_zf, Q_zf] = zf_equalizer(rx_noisy_mf,taps);
 
 
             case 2
 %                 disp("MMSE Eq")
-                [rx_zeronoise_mmse,Q_mmse] = mmse(rx_zero_noise_mf,H,0,Eb);
-                [rx_noisy_mmse,Q_mmse] = mmse(rx_noisy_mf,H,npwr,Eb);
+                [rx_zeronoise_mmse,Q_mmse] = mmse(rx_zero_noise_mf,taps,0,Eb);
+                [rx_noisy_mmse,Q_mmse] = mmse(rx_noisy_mf,taps,npwr,Eb);
 
         end
 
 
         if pulseshape
-%             rx_zeronoise_zf = rx_zeronoise_zf(1:hs_vectorlength);
-%             rx_noisy_zf = rx_noisy_zf(1:hs_vectorlength);
-            rx_zeronoise_mmse = rx_zeronoise_mmse(1:hs_vectorlength);
-            rx_noisy_mmse = rx_noisy_mmse(1:hs_vectorlength);
+            if eq
+                rx_zeronoise_zf = rx_zeronoise_zf(1:hs_vectorlength);
+                rx_noisy_zf = rx_noisy_zf(1:hs_vectorlength);
 
+            else
+                rx_zeronoise_mmse = rx_zeronoise_mmse(1:hs_vectorlength);
+                rx_noisy_mmse = rx_noisy_mmse(1:hs_vectorlength);
+
+            end
+            
         else
-%             rx_zeronoise_zf = [];
-%             rx_noisy_zf = [];
+            rx_zeronoise_zf = [];
+            rx_noisy_zf = [];
             rx_zeronoise_mmse =[];
             rx_noisy_mmse =[];
         end
-
-        
-               
+             
             bitstream_sampled = zeros(n_bits,1);
         %%%% Sampling and Detection %%%%
 
         % HS
         if pulseshape
 %             disp("HS Sampling and Detection")
-            bitstream_sampled(rx_zeronoise_mmse(32:32:end)>0) = 1;
+            bitstream_sampled(rx_zeronoise_zf(32:samps:end)>0) = 1;
 
         else
 %             bitstream_sampled = [];
@@ -174,21 +170,6 @@ function main(img_filename, qbits, color, pulseshape, channel, eq, noisepwr)
             
 %             Ztres(:,:,z) == stack(:,:,z)
 
-        
-        figure,
-%         plot(clean_channel_sig(1:2000))
-        hold on
-%         plot(noisy_received_sig(1:2000))
-%         plot(channel_input_sig(1:2000))
-        plot(rx_noisy_mmse(1:2000),'LineWidth',1.5)
-        legend()
-        grid minor
-        
-%         figure,
-%         plot(rx_noisy_zf)
-%         hold on
-%         plot(rx_zeronoise_zf)
-%         grid minor
     end
     %%%% Plot mmse/zf output %%%%
 
@@ -218,19 +199,19 @@ end
 
 %
 % Zero Forcing Equalizer
-function [zf_sig, Q_zf] = zf_equalizer(rx,H)
+function [zf_sig, Q_zf] = zf_equalizer(rx,channel_impulse)
+    H = fft(channel_impulse,length(rx));
     Q_zf = 1./H;
-    Q_zf = Q_zf';
-
+    
     zf_sig = eq_sig(rx,Q_zf);
 end
 
 % MMSE Equalizer
-function [mmse_sig,Q_mmse] = mmse(rx,H,noise_pow,Eb)
+function [mmse_sig,Q_mmse] = mmse(rx,channel_impulse,noise_pow,Eb)
+    H = fft(channel_impulse,length(rx));    
     H_conj = conj(H);
     H_sq = abs(H).^2;
     Q_mmse = H_conj ./ (H_sq + (noise_pow/Eb));
-    Q_mmse = Q_mmse';
 
     mmse_sig = eq_sig(rx, Q_mmse);
 end
@@ -241,26 +222,6 @@ function [eq_sig] = eq_sig(rx,Q_eq)
     g_eq = g .* Q_eq;
     eq_sig = ifft(g_eq);
 end
-% 
-% % MMSE Eq
-% function [mmse_sig,Q_mmse] = mmse(g_rec,H,noise_pow,Eb)
-%     H_conj = conj(H);
-%     H_sq = abs(H).^2;
-%     Q_mmse = H_conj ./ (H_sq + (noise_pow/Eb));
-%     Q_mmse = Q_mmse';
-% 
-%     % Apply MMSE Eq.
-%     G = fft(g_rec,length(Q_mmse));
-%     G_mmse = G .* Q_mmse;
-%     mmse_sig = ifft(G_mmse);
-%     % check length
-% end
-% %
-% % zero-forcing equalizer
-% function [ZF_ht, ZF_t, ZF_f, ZF_w] = ZFeq(channel_coeffs)
-%     [ZF_f, ZF_w] = freqz(1,channel_coeffs,10000);
-%     [ZF_ht, ZF_t] = impz(1,channel_coeffs,2048);
-% end
 
 %
 % matched filtering, provide pulse shape
@@ -272,7 +233,7 @@ end
 % channel modulation with choice of 3 defined channels
 % returns noisy and clean channel responses, channel coefficients, and
 % noise powers
-function [noisy_received_sig, clean_channel_sig, channel_coeffs, noisepwr] = channel_modulation(sig, channelselect,noisesel)
+function [noisy_received_sig, clean_channel_sig, upsampled_filter_coeffs, noisepwr] = channel_modulation(sig, channelselect,noisesel)
     ch1 = [1, 0.5, 0.75, -2/7];
     ch_outdoor = [0.5 1 0 0.63 0 0 0 0 0.25 0 0 0 0.16 0 0 0 0 0 0 0 0 0 0 0 0 0.1];
     ch_indoor = [1 0.4365 0.1905 0.0832 0 0.0158 0 0.003];
