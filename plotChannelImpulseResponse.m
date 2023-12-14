@@ -14,7 +14,7 @@ C(:,:) = {upsample(ch1,32);upsample(ch_outdoor,32);upsample(ch_indoor,32)};
 
 rx =1:512;
 Eb = 1;
-n_pow = 01;
+n_pow = 0.1;
 
 for i=1:numel(C)
     H = freqz(C{i,:});
