@@ -3,7 +3,7 @@ clear
 clc
 
 %%
-% Plot channel impulse response
+% Plot eq impulse response
 
 ch1 = [1, 0.5, 0.75, -2/7];
 ch_outdoor = [0.5 1 0 0.63 0 0 0 0 0.25 0 0 0 0.16 0 0 0 0 0 0 0 0 0 0 0 0 0.1];
@@ -17,6 +17,16 @@ Eb = 1;
 n_pow = 0.1;
 
 for i=1:numel(C)
+    t_ch = linspace(0,length(C{i,:})/32,length(C{i,:}));
+    figure(1),
+    subplot(3,1,i)
+    plot(t_ch,C{i,:})
+    
+    grid minor
+    title("Channel: "+i+ ...
+        " Impulse Response")
+
+
     H = freqz(C{i,:});
     Q_zf = 1./H;
     Q_mmse = conj(H) ./ ((abs(H).^2) + n_pow/Eb);
@@ -25,6 +35,9 @@ for i=1:numel(C)
     q_mmse = ifft(Q_mmse,numel(C{i,:}));
 
     t = linspace(0,length(q_zf)/32,length(q_zf));
+
+
+
 
     figure,
 
