@@ -11,7 +11,7 @@ clc
 % Modularize process
 % 
 % image preprocess
-filename = 'octo256.jpg';
+filename = 'peppers.png';
 % imfinfo(filename)
 qbits = 8;
 %%
@@ -29,7 +29,7 @@ function main(img_filename, qbits)
     % image preproc
     [Ztres,r,c,m,n,minval,maxval] = ImagePreProcess_color(img_filename, qbits);
 %     [Ztres_gray,r,c,m,n,minval,maxval]=ImagePreProcess_gray(img_filename,qbits)
-    img_RGB = imread(img_filename);
+     img_RGB = imread(img_filename);
 %     img_double = im2double(img_RGB);
     numcol = floor(numel(img_RGB(1,:,1))/2);
 
@@ -85,9 +85,21 @@ function main(img_filename, qbits)
         ak_bin = reshape(ak_reconstructed,64,8);
         ak_recon = bit2int(ak_bin,8);
         
-        
+        % figure(2)
+        % hold on
+        % plot(modulated_sig)
+        % plot(zero_forced_sig)
+        % errors = (ak == bitstream_sampled);
+        % disp("Error Indicies: ")
+        % find(errors==0)
+
         stack(:,:,z) = ak_recon;
-        orig(:,:,z) = Ztres(:,:,1);
+        % %orig(:,:,z) = Ztres(:,:,1);
+        % errors = (stack(:,:,z) == Ztres(:,:,z));
+        % alert = find(errors==0);
+        % if (isempty(alert))
+        %     disp("ERRORS AT ITERATION " + z)
+        % end
         
         
 
@@ -151,7 +163,8 @@ function main(img_filename, qbits)
 
 
     end
-
+    
+    stack = cast(stack,'uint8');
     [newZ]=ImagePostProcess_color(stack,r,c,m,n,minval,maxval);
     
    
