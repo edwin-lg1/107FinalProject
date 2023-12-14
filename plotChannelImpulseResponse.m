@@ -20,7 +20,7 @@ for i=1:numel(C)
     t_ch = linspace(0,length(C{i,:})/32,length(C{i,:}));
     figure(1),
     subplot(3,1,i)
-    plot(t_ch,C{i,:})
+    stem(t_ch,C{i,:})
     
     grid minor
     title("Channel: "+i+ ...
