@@ -26,7 +26,6 @@ for i=1:numel(C)
     title("Channel: "+i+ ...
         " Impulse Response")
 
-
     H = freqz(C{i,:});
     Q_zf = 1./H;
     Q_mmse = conj(H) ./ ((abs(H).^2) + n_pow/Eb);
@@ -35,18 +34,12 @@ for i=1:numel(C)
     q_mmse = ifft(Q_mmse,numel(C{i,:}));
 
     t = linspace(0,length(q_zf)/32,length(q_zf));
-
-
-
-
-    figure,
-
+    figure(i+1),
     subplot(2,1,1)
     plot(t,q_zf)
     grid minor
     title("Channel: "+i+newline + ...
         "ZF Equalizer - Impulse Response")
-%     title("")
     subplot(2,1,2)
     plot(t,q_mmse)
     grid minor
