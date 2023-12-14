@@ -11,7 +11,7 @@ clc
 % Modularize process
 % 
 % image preprocess
-filename = 'peppers.png';
+filename = 'octo256.jpg';
 % imfinfo(filename)
 qbits = 8;
 %%
@@ -56,91 +56,50 @@ function main(img_filename, qbits)
         K = 6;
         alpha = 0.5;
         samps = 32;
-
-        for i = 1%:2 % 1 selects Half-Sine
-            [modulated_sig, t, ...
-                pulse, pulse_t, Tb, K, alpha, samps] = pulseshape_modulation(img_bitstream, ...
-                                                             i, Tb, K, alpha, samps);
-        for j = 1%:3 % 1 selects channel 1
-            [noisy_received_sig, clean_channel_sig, taps, npwr] = channel_modulation(modulated_sig, j);
-        end
-        noisy_low = noisy_received_sig(1,:);
-        noisy_high = noisy_received_sig(2,:);
-        noisy_0 = clean_channel_sig(:);
-
-        [matchedfiltered_sig, matchedfilter] = matched_filtering(noisy_0,pulse);
         
-        %EQ
-        zero_forced_sig = filter(1,taps,matchedfiltered_sig);
-        H = freqz(taps,1);
-        noise_pow = 0;
-        Eb = 1;
-        [mmse_sig,Q_mmse] = mmse(matchedfiltered_sig',H,noise_pow,Eb);
-
-        bitstream_sampled = zeros(n_bits,1);
- 
-        bitstream_sampled(zero_forced_sig(32:samps:end-(4*32)-1)>0) = 1;
-
-        ak_reconstructed = cast(bitstream_sampled,'uint8');
-        ak_bin = reshape(ak_reconstructed,64,8);
-        ak_recon = bit2int(ak_bin,8);
+        for i = 1 % 1 selects HS, 2 selects SRRC
+            [modulated_sig, ~, pulse, ~, Tb, K, alpha, samps] = pulseshape_modulation(img_bitstream, i, Tb, K, alpha, samps);
+            for j = 1%:3 % 1 selects channel 1
+                [noisy_received_sig, clean_channel_sig, taps, sigma] = channel_modulation(modulated_sig, j);
+            end
+            %disp("here1")
+            noisy_low = noisy_received_sig(1,:);
+            noisy_high = noisy_received_sig(2,:);
+            noisy_0 = clean_channel_sig(:);
+            
+    
+            [matchedfiltered_sig, ~] = matched_filtering(noisy_high,pulse);
+            
+            %EQ
+            H = freqz(taps,1,length(matchedfiltered_sig),'whole');
+            noise_pow = 0.1;
+            Eb = 1;
+            zero_forced_sig = filter(1,taps,matchedfiltered_sig);
+            %[mmse_sig,Q_mmse] = mmse(matchedfiltered_sig,H,noise_pow,Eb);
+    
+            bitstream_sampled = zeros(n_bits,1);
         
-        % figure(2)
-        % hold on
-        % plot(modulated_sig)
-        % plot(zero_forced_sig)
-        % errors = (ak == bitstream_sampled);
-        % disp("Error Indicies: ")
-        % find(errors==0)
-
-        stack(:,:,z) = ak_recon;
-        % %orig(:,:,z) = Ztres(:,:,1);
-        % errors = (stack(:,:,z) == Ztres(:,:,z));
-        % alert = find(errors==0);
-        % if (isempty(alert))
-        %     disp("ERRORS AT ITERATION " + z)
-        % end
+            % HS sampling
+            bitstream_sampled(zero_forced_sig(32:samps:end-(4*32)-1)>0) = 1;
+            %bitstream_sampled(mmse_sig(32:samps:end-(4*32)-1)>0) = 1;
         
-        
-
-%         [newZ]=ImagePostProcess_color(orig,r,c,m,n,minval,maxval);
-
-
-%         figure,
-%         stem(ak_reconstructed)
-%         hold on
-%         stem(2*ak_double-1)
-
-
-
-%         [ZF_ht, ZF_t, ZF_f, ZF_w] = ZFeq(taps);
-        
-%         figure,
-%         plot(modulated_sig)
-%         hold on
-%         plot(abs(mmse_sig))
-%         grid minor
-%         legend()
-%         plot(matchedfiltered_sig)
-%         plot(zero_forced_sig)
-
-
-
-% 
-%         figure(99)
-%         plot(noisy_received_sig(1,1:10))
-%         hold on
-%         plot(noisy_received_sig(2,1:10))
-%         plot(clean_channel_sig(1:10), 'LineWidth',2)
-
-
-%     % plot modulated signal
-%             figure(i),
-%             plot(t,modulated_sig)
-      % plot pulse shapes
-%             figure(i+2)
-%             plot(pulse_t,pulse)
-        
+            % SRRC Sampling
+            % bitstream_sampled(zero_forced_sig(396:samps:396+(512*32)-1)>0) = 1;
+            % bitstream_sampled(mmse_sig(396:samps:396+(512*32)-1)>0) = 1;
+    
+            ak_reconstructed = cast(bitstream_sampled,'uint8');
+            ak_bin = reshape(ak_reconstructed,64,8);
+            ak_recon = bit2int(ak_bin,8);
+            
+            % figure(2)
+            % hold on
+            % plot(modulated_sig)
+            % plot(mmse_sig)
+            % errors = (ak == bitstream_sampled);
+            % disp("Error Indicies: ")
+            % find(errors==0)
+    
+            stack(:,:,z) = ak_recon;
         
         end
         
@@ -158,8 +117,6 @@ function main(img_filename, qbits)
     
     % -> 
 %     % sample and detect
-%     bk_reconstructed = img_bitstream; %%%temporary testing
-
 
 
     end
@@ -190,7 +147,6 @@ function [mmse_sig,Q_mmse] = mmse(g_rec,H,noise_pow,Eb)
     H_conj = conj(H);
     H_sq = abs(H).^2;
     Q_mmse = H_conj ./ (H_sq + (noise_pow/Eb));
-    Q_mmse = Q_mmse';
 
     % Apply MMSE Eq.
     G = fft(g_rec,length(Q_mmse));
@@ -267,17 +223,18 @@ function [modulated_sig, t, pulse, t_pulse, Tb, K, alpha, samps] = pulseshape_mo
             pulse = rcosdesign(alpha, 2*K, samps);
             pulse = pulse/norm(pulse);
 
-            srrc_ind = [];
             idx0 = 1;
             idx1 = 2*K*samps+1;
+            srrc_ind = zeros(512,(512*32)+(12*512)+1);
             for j = 1:length(sig)
                 srrc_ind(j,idx0:idx1) = sig(j)*pulse;
                 idx0 = idx0 + samps;
                 idx1 = idx1 + samps;
             end
-
+            
+            modulated_sig = zeros(1,length(srrc_ind));
             for k = 1:length(srrc_ind)
-                modulated_sig = [modulated_sig sum(srrc_ind(:,k))];
+                modulated_sig(k) = sum(srrc_ind(:,k));
             end
             t = linspace(0,2*length(sig)+1,length(modulated_sig));
 
