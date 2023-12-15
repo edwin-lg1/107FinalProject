@@ -1,0 +1,191 @@
+%% Reset Workspace
+close all
+clear
+clc
+
+%%
+% EE 107 - Communication Systems - Final Project
+% Authors: Nicholas Boudreau, Andrew Chen, Edwin Liang-Gilman
+
+%% Image Selection
+filename = 'octo160.jpg';
+qbits = 8;
+
+%% Parameter Selection
+pulseType = 1; % 1 for half-sine, 2 for SRRC
+eq = 2; % 1 for zero forcing, 2 for MMSE
+chan = 1; % 1 for first channel, 2 for outdoor, 3 for indoor
+color = 1; % 0 for grayscale image, 1 for color image
+noise_pow = 0.8;
+
+%% Run main
+main(filename,qbits,pulseType,eq,chan,color,noise_pow);
+
+%% Main driver 
+function main(img_filename, qbits, pulseType, eq, chan, color,noise_pow)
+    if color == 0 
+        [Ztres,r,c,m,n,minval,maxval] = ImagePreProcess_gray(img_filename,qbits);  
+    else
+        [Ztres,r,c,m,n,minval,maxval] = ImagePreProcess_color(img_filename, qbits);
+    end
+
+    img_RGB = imread(img_filename);
+    numcol = floor(numel(img_RGB(1,:,1))/2);
+
+    DCTblocks = int2bit(Ztres,8);
+    stack = zeros(8,8,size(DCTblocks,3));
+    
+    for z = 1:size(DCTblocks,3) % 4 blocks
+        ak = reshape(DCTblocks(:,:,z),[],1);
+        ak_double = cast(ak, 'double');
+        bk = 2*ak_double-1;
+        img_bitstream = bk;
+        n_bits = size(DCTblocks,1)*size(DCTblocks,2);
+        
+        Tb = 1;
+        K = 6;
+        alpha = 0.5;
+        samps = 32;
+        
+        %% Pulse Modulation
+        [modulated_sig, ~, pulse, ~, ~, ~, ~, samps] = pulseshape_modulation(img_bitstream, pulseType, Tb, K, alpha, samps);
+
+        %% Channel Modulation
+        [channel_sig, taps] = channel_modulation(modulated_sig, chan, noise_pow);
+        channel_sig = channel_sig';
+
+        %% Matched Filtering
+        [matchedfiltered_sig, ~] = matched_filtering(channel_sig,pulse);
+        
+        %% Equalizer
+        H = freqz(taps,1,length(matchedfiltered_sig),'whole');
+        Eb = 1;
+
+        if eq == 1
+            eq_sig = filter(1,taps,matchedfiltered_sig); % Zero Forcing
+        else
+            [eq_sig,~] = mmse(matchedfiltered_sig,H,noise_pow,Eb); % MMSE
+        end
+
+        %% Sampling and Detection
+        bitstream_sampled = samp(eq_sig,pulseType,n_bits,samps);
+        
+        %% DCT Reconstruction
+        ak_reconstructed = cast(bitstream_sampled,'uint8');
+        ak_bin = reshape(ak_reconstructed,64,8);
+        ak_recon = bit2int(ak_bin,8);
+        stack(:,:,z) = ak_recon;
+    end
+    
+    %% Image Post-Processing
+    stack = cast(stack,'uint8');
+
+    if color == 0
+        ImagePostProcess_gray(stack,r,c,m,n,minval,maxval);
+    else
+        ImagePostProcess_color(stack,r,c,m,n,minval,maxval);
+    end
+end
+
+%% Supporting Functions
+
+% MMSE Equalizer
+function [mmse_sig,Q_mmse] = mmse(g_rec,H,noise_pow,Eb)
+    H_conj = conj(H);
+    H_sq = abs(H).^2;
+    Q_mmse = H_conj ./ (H_sq + (noise_pow/Eb));
+
+    % Apply MMSE Eq.
+    G = fft(g_rec,length(Q_mmse));
+    G_mmse = G .* Q_mmse;
+    mmse_sig = ifft(G_mmse);
+end
+
+%
+% matched filtering, provide pulse shape
+function [matchedfiltered_sig, matchedfilter] = matched_filtering(sig,pulse)
+    matchedfilter = flip(pulse(1:end-1));%fliplr(pulse);
+    matchedfiltered_sig = conv(sig,matchedfilter);
+end
+
+
+% Channel modulation, with choice of 3 defined channels
+function [clean_channel_sig, filter_coeffs] = channel_modulation(sig, channelselect, noisepow)
+    % channel definition
+    ch1 = [1, 0.5, 0.75, -2/7];
+    ch_outdoor = [0.5 1 0 0.63 0 0 0 0 0.25 0 0 0 0.16 0 0 0 0 0 0 0 0 0 0 0 0 0.1];
+    ch_indoor = [1 0.4365 0.1905 0.0832 0 0.0158 0 0.003];
+
+    switch channelselect
+        case 1
+            filter_coeffs = ch1;
+        case 2
+            filter_coeffs = ch_outdoor;
+        case 3
+            filter_coeffs = ch_indoor;
+        otherwise
+            filter_coeffs = [];
+    end
+
+        upsampled_filter_coeffs = upsample(filter_coeffs,32);
+        filter_coeffs = upsampled_filter_coeffs;
+        clean_channel_sig = conv(upsampled_filter_coeffs,sig);
+
+        if noisepow > 0
+            n = noisepow.*randn(size(clean_channel_sig));
+            clean_channel_sig = clean_channel_sig + n;
+        end
+
+end
+
+% Modulation (HS or SRRC)
+function [modulated_sig, t, pulse, t_pulse, Tb, K, alpha, samps] = pulseshape_modulation(sig, pulseshape, Tb, K, alpha, samps)
+    modulated_sig = [];
+    
+    switch pulseshape
+        case 1 % half-sine
+%             modulated_sig = zeros() % how to determine sizing
+            % definition
+            t_pulse = linspace(0,1,samps+1);
+            pulse = sin((pi/Tb)*t_pulse);
+            pulse = pulse/norm(pulse);
+            % modulation
+            for j = 1:length(sig)-1
+                modulated_sig = [modulated_sig sig(j)*pulse(1:samps)];
+            end
+            modulated_sig = [modulated_sig sig(length(sig))*pulse];
+            t = linspace(0,length(sig),samps*length(sig)+1);
+
+        case 2 % srrc
+            t_pulse = linspace(-K*Tb,K*Tb,2*K*samps+1);
+            pulse = rcosdesign(alpha, 2*K, samps);
+            pulse = pulse/norm(pulse);
+
+            idx0 = 1;
+            idx1 = 2*K*samps+1;
+            srrc_ind = zeros(512,(512*32)+(12*512)+1);
+            for j = 1:length(sig)
+                srrc_ind(j,idx0:idx1) = sig(j)*pulse;
+                idx0 = idx0 + samps;
+                idx1 = idx1 + samps;
+            end
+            
+            modulated_sig = zeros(1,length(srrc_ind));
+            for k = 1:length(srrc_ind)
+                modulated_sig(k) = sum(srrc_ind(:,k));
+            end
+            t = linspace(0,2*length(sig)+1,length(modulated_sig));
+
+    end
+end
+
+% Sample Function
+function [sampled] = samp(sig,pulseType,bits,samps)
+    sampled = zeros(bits,1);
+
+    if pulseType == 1
+        sampled(sig(32:samps:32+(512*32)-1)>0) = 1;
+    else
+        sampled(sig(396:samps:396+(512*32)-1)>0) = 1;
+    end
+end
